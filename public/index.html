@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Our Cozy Corner 💌</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #ffdde1, #ee9ca7); margin: 0; padding: 20px; height: 100vh; box-sizing: border-box; overflow: hidden; display: flex; justify-content: center; align-items: center; }
+        .container { background: rgba(255, 255, 255, 0.95); padding: 20px; border-radius: 20px; box-shadow: 0 8px 16px rgba(238, 156, 167, 0.4); width: 100%; max-width: 500px; display: flex; flex-direction: column; z-index: 10; }
+        h2 { color: #d81b60; text-align: center; margin-top: 0; }
+        input, select { padding: 12px; border: 2px solid #f8bbd0; border-radius: 15px; outline: none; margin-bottom: 15px; width: 100%; box-sizing: border-box; font-size: 1em;}
+        button { padding: 12px 20px; background-color: #d81b60; color: white; cursor: pointer; border: none; border-radius: 15px; font-weight: bold; width: 100%; transition: 0.2s; font-size: 1em;}
+        button:hover { background-color: #ad1457; transform: scale(1.02); }
+
+        #loginScreen { text-align: center; }
+        #mainApp { display: none; height: 85vh; width: 100%; max-width: 900px; gap: 20px; flex-direction: row; }
+        .app-section { flex: 1; display: flex; flex-direction: column; background: rgba(255,255,255,0.9); padding: 20px; border-radius: 20px; }
+        
+        #messages { list-style: none; padding: 0; flex-grow: 1; overflow-y: auto; margin-bottom: 15px; }
+        #messages li { padding: 10px; margin-bottom: 8px; background: #fce4ec; border-radius: 15px; color: #880e4f; width: fit-content; max-width: 90%; line-height: 1.4; }
+        .chat-form { display: flex; gap: 10px; }
+        .chat-form input { margin-bottom: 0; }
+        .chat-form button { width: auto; }
+
+        /* Game & Canvas Areas */
+        #cardGameArea { display: flex; flex-direction: column; flex-grow: 1; justify-content: center;}
+        #cardDisplay { font-size: 1.3em; color: #880e4f; margin: 20px 0; padding: 30px; border: 3px dashed #f48fb1; background: #fff; border-radius: 20px; min-height: 100px; display: flex; align-items: center; justify-content: center; text-align: center; line-height: 1.4; transition: transform 0.2s; }
+        
+        #canvasArea { display: none; text-align: center; flex-grow: 1; flex-direction: column; align-items: center; justify-content: center;}
+        canvas { border: 3px solid #f8bbd0; border-radius: 15px; background: white; cursor: crosshair; touch-action: none; margin-bottom: 15px; max-width: 100%; box-shadow: 0 4px 8px rgba(0,0,0,0.05);}
+        .canvas-tools { display: flex; gap: 10px; justify-content: center; width: 100%; }
+        input[type="color"] { width: 50px; padding: 0; height: 42px; cursor: pointer; border-radius: 5px; border: none;}
+
+        .action-bar { display: flex; gap: 10px; justify-content: center; margin-top: 20px; }
+        .action-bar button { width: auto; background-color: #ff4081; font-size: 1.2em; padding: 10px 15px;}
+
+        .floating-emoji { position: absolute; bottom: -50px; pointer-events: none; animation: floatUp 4s ease-in forwards; z-index: 1; }
+        @keyframes floatUp { 0% { transform: translateY(0) scale(1); opacity: 1; } 100% { transform: translateY(-120vh) scale(1.5); opacity: 0; } }
+    </style>
+</head>
+<body>
+
+    <div class="container" id="loginScreen">
+        <h2>Secret Access 💌</h2>
+        <input type="text" id="usernameInput" placeholder="Your Name" required />
+        <input type="password" id="roomInput" placeholder="Secret Access Code" required />
+        <button id="joinBtn">Enter Room</button>
+    </div>
+
+    <div id="mainApp">
+        <div class="app-section">
+            <h2>Chat 💬</h2>
+            <ul id="messages"></ul>
+            <form id="form" class="chat-form">
+                <input id="input" autocomplete="off" placeholder="Whisper something sweet..." />
+                <button>Send</button>
+            </form>
+        </div>
+
+        <div class="app-section">
+            <h2>Activities 🎲</h2>
+            
+            <select id="gameSelect">
+                <option value="tod">Truth or Dare ❤️</option>
+                <option value="mostLikely">Who is Most Likely To? 🧐</option>
+                <option value="wyr">Would You Rather? 🤔</option>
+                <option value="nhie">Never Have I Ever 🤫</option>
+                <option value="dateNight">Date Night Roulette 🍿</option>
+                <option value="draw">Co-op Doodle Board 🎨</option>
+            </select>
+
+            <div id="cardGameArea">
+                <div id="cardDisplay">Select an activity above and push the button!</div>
+                <button id="drawBtn" style="padding: 15px; font-size: 1.1em;">🎲 Go!</button>
+            </div>
+
+            <div id="canvasArea">
+                <canvas id="doodleBoard" width="350" height="300"></canvas>
+                <div class="canvas-tools">
+                    <input type="color" id="colorPicker" value="#d81b60">
+                    <button id="clearBtn">🗑️ Clear Canvas</button>
+                </div>
+            </div>
+            
+            <div class="action-bar">
+                <button onclick="sendLove('💖')">💖</button>
+                <button onclick="sendLove('😘')">😘</button>
+                <button onclick="sendLove('✨')">✨</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+
+        // 1. UI Switching Logic
+        const loginScreen = document.getElementById('loginScreen');
+        const mainApp = document.getElementById('mainApp');
+        const gameSelect = document.getElementById('gameSelect');
+        const cardGameArea = document.getElementById('cardGameArea');
+        const canvasArea = document.getElementById('canvasArea');
+
+        document.getElementById('joinBtn').addEventListener('click', () => {
+            const name = document.getElementById('usernameInput').value;
+            const roomCode = document.getElementById('roomInput').value;
+            
+            // SECURITY CHECK: Password must be exactly "iloveyou"
+            if (name && roomCode === 'iloveyou') {
+                socket.emit('join room', { name, roomCode });
+                loginScreen.style.display = 'none';
+                mainApp.style.display = 'flex';
+                document.body.style.alignItems = 'flex-start';
+            } else if (name && roomCode !== 'iloveyou') {
+                alert("Oops! That's not our secret code. Try again! 💖");
+            } else {
+                alert("Please enter your name!");
+            }
+        });
+
+        gameSelect.addEventListener('change', (e) => {
+            if (e.target.value === 'draw') {
+                cardGameArea.style.display = 'none';
+                canvasArea.style.display = 'flex';
+            } else {
+                cardGameArea.style.display = 'flex';
+                canvasArea.style.display = 'none';
+                // Reset text when switching games
+                document.getElementById('cardDisplay').textContent = "Push the button to draw a new card!";
+            }
+        });
+
+        // 2. Chat & Card Logic
+        const form = document.getElementById('form');
+        const input = document.getElementById('input');
+        const messages = document.getElementById('messages');
+
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            if (input.value) { socket.emit('chat message', input.value); input.value = ''; }
+        });
+
+        socket.on('chat message', (msg) => {
+            const item = document.createElement('li');
+            item.innerHTML = msg.includes('**') ? msg.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') : msg;
+            messages.appendChild(item);
+            messages.scrollTo(0, messages.scrollHeight);
+        });
+
+        document.getElementById('drawBtn').addEventListener('click', () => {
+            socket.emit('draw card', gameSelect.value);
+        });
+
+        socket.on('game update', (prompt) => {
+            const display = document.getElementById('cardDisplay');
+            display.textContent = prompt;
+            display.style.transform = 'scale(1.05)';
+            setTimeout(() => display.style.transform = 'scale(1)', 200);
+        });
+
+        // 3. Floating Love
+        function sendLove(emoji) { socket.emit('send love', emoji); }
+        socket.on('receive love', (emoji) => {
+            const el = document.createElement('div'); el.classList.add('floating-emoji'); el.textContent = emoji;
+            el.style.left = Math.random() * 95 + 'vw'; el.style.fontSize = (Math.random() * 2 + 2) + 'em';
+            el.style.animationDuration = (Math.random() * 2 + 3) + 's';
+            document.body.appendChild(el); setTimeout(() => el.remove(), 5000);
+        });
+
+        // 4. CANVA DRAWING LOGIC
+        const canvas = document.getElementById('doodleBoard');
+        const ctx = canvas.getContext('2d');
+        const colorPicker = document.getElementById('colorPicker');
+        let current = { color: '#d81b60' };
+        let drawing = false;
+
+        colorPicker.addEventListener('change', (e) => current.color = e.target.value);
+
+        function drawLine(x0, y0, x1, y1, color, emit) {
+            ctx.beginPath();
+            ctx.moveTo(x0, y0);
+            ctx.lineTo(x1, y1);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 4;
+            ctx.lineCap = 'round';
+            ctx.stroke();
+            ctx.closePath();
+
+            if (!emit) return;
+            socket.emit('drawing', { x0, y0, x1, y1, color });
+        }
+
+        function onMouseDown(e) {
+            drawing = true;
+            const rect = canvas.getBoundingClientRect();
+            current.x = (e.clientX || e.touches[0].clientX) - rect.left;
+            current.y = (e.clientY || e.touches[0].clientY) - rect.top;
+        }
+
+        function onMouseUp(e) {
+            if (!drawing) return;
+            drawing = false;
+            const rect = canvas.getBoundingClientRect();
+            drawLine(current.x, current.y, (e.clientX || e.changedTouches[0].clientX) - rect.left, (e.clientY || e.changedTouches[0].clientY) - rect.top, current.color, true);
+        }
+
+        function onMouseMove(e) {
+            if (!drawing) return;
+            const rect = canvas.getBoundingClientRect();
+            const x = (e.clientX || e.touches[0].clientX) - rect.left;
+            const y = (e.clientY || e.touches[0].clientY) - rect.top;
+            drawLine(current.x, current.y, x, y, current.color, true);
+            current.x = x;
+            current.y = y;
+        }
+
+        canvas.addEventListener('mousedown', onMouseDown);
+        canvas.addEventListener('mouseup', onMouseUp);
+        canvas.addEventListener('mouseout', onMouseUp);
+        canvas.addEventListener('mousemove', onMouseMove);
+        
+        canvas.addEventListener('touchstart', (e) => { e.preventDefault(); onMouseDown(e); }, {passive: false});
+        canvas.addEventListener('touchend', (e) => { e.preventDefault(); onMouseUp(e); }, {passive: false});
+        canvas.addEventListener('touchcancel', (e) => { e.preventDefault(); onMouseUp(e); }, {passive: false});
+        canvas.addEventListener('touchmove', (e) => { e.preventDefault(); onMouseMove(e); }, {passive: false});
+
+        socket.on('drawing', (data) => drawLine(data.x0, data.y0, data.x1, data.y1, data.color, false));
+
+        document.getElementById('clearBtn').addEventListener('click', () => socket.emit('clear canvas'));
+        socket.on('clear canvas', () => ctx.clearRect(0, 0, canvas.width, canvas.height));
+
+    </script>
+</body>
+</html>
